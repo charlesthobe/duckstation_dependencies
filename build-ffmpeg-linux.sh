@@ -174,13 +174,38 @@ shasum -a 256 --check SHASUMS
 
 export PKG_CONFIG_PATH="$INSTALLDIR/lib/pkgconfig:$INSTALLDIR/lib64/pkgconfig:$DEPSINSTALLDIR/lib/pkgconfig:$DEPSINSTALLDIR/lib64/pkgconfig:$PKG_CONFIG_PATH"
 
+# Set LLVM version
+LLVM_VER=$(cat "$SCRIPTDIR/LLVM_VER")
+
+# Set compiler, linker and c++ standard lib to llvm
+export CC=clang-${LLVM_VER}
+export CXX=clang++-${LLVM_VER}
+export LDFLAGS="-fuse-ld=lld -stdlib=libc++"
+export CXXFLAGS="-stdlib=libc++"
+
+DEP_CMAKE_COMMON=(
+  -B build-ds
+  -G Ninja
+  -DCMAKE_INSTALL_PREFIX="$DEPSINSTALLDIR"
+  -DCMAKE_PREFIX_PATH="$DEPSINSTALLDIR"
+  -DCMAKE_BUILD_TYPE=Release
+  -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+  -DBUILD_SHARED_LIBS=OFF
+)
+DEP_CONFIGURE_COMMON=(
+  --prefix="$DEPSINSTALLDIR"
+  --enable-static
+  --disable-shared
+  --with-pic
+)
+
 echo "Building LAME"
 rm -fr "lame-$LAME"
 tar xf "lame-$LAME.tar.gz"
 cd "lame-$LAME"
 mkdir build
 cd build
-../configure --prefix="$DEPSINSTALLDIR" --disable-shared --enable-static --with-pic --disable-frontend
+../configure "${DEP_CONFIGURE_COMMON[@]}" --disable-frontend
 make -j "$NPROCS"
 make install
 cd ../..
@@ -191,7 +216,9 @@ tar xf "libvpx-$LIBVPX.tar.gz"
 cd "libvpx-$LIBVPX"
 mkdir build-ds
 cd build-ds
-../configure --prefix="$DEPSINSTALLDIR" --disable-shared --enable-static --enable-pic --disable-examples --disable-tools --disable-docs --enable-vp8 --enable-vp9
+# Doesn't actually use autotools configure for better or worse
+LIBVPX_FLAGS=("${DEP_CONFIGURE_COMMON[@]/--with-pic/--enable-pic}")
+../configure "${LIBVPX_FLAGS[@]}" --disable-examples --disable-tools --disable-docs --enable-vp8 --enable-vp9
 make -j "$NPROCS"
 make install
 cd ../..
@@ -203,7 +230,7 @@ cd "fdk-aac-stripped-$FDK_AAC"
 ./autogen.sh
 mkdir build
 cd build
-../configure --prefix="$DEPSINSTALLDIR" --enable-static --disable-shared --with-pic
+../configure "${DEP_CONFIGURE_COMMON[@]}" 
 make -j "$NPROCS"
 make install
 cd ../..
@@ -211,7 +238,7 @@ cd ../..
 echo "Building libaom..."
 cd aom
 rm -fr build-ds
-cmake -B build-ds -G Ninja -DCMAKE_INSTALL_PREFIX="$DEPSINSTALLDIR" -DCMAKE_PREFIX_PATH="$DEPSINSTALLDIR" -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DBUILD_SHARED_LIBS=OFF -DENABLE_DOCS=OFF -DENABLE_EXAMPLES=OFF -DENABLE_TESTDATA=OFF -DENABLE_TESTS=OFF -DENABLE_TOOLS=OFF
+cmake "${DEP_CMAKE_COMMON[@]}" -DENABLE_DOCS=OFF -DENABLE_EXAMPLES=OFF -DENABLE_TESTDATA=OFF -DENABLE_TESTS=OFF -DENABLE_TOOLS=OFF
 cmake --build build-ds --parallel
 cmake --install build-ds
 cd ..
@@ -222,7 +249,7 @@ tar xf "libogg-$LIBOGG.tar.gz"
 cd "libogg-$LIBOGG"
 mkdir build-ds
 cd build-ds
-../configure --prefix="$DEPSINSTALLDIR" --enable-static --disable-shared --with-pic
+../configure "${DEP_CONFIGURE_COMMON[@]}" 
 make -j "$NPROCS"
 make install
 cd ../..
@@ -233,7 +260,7 @@ tar xf "libvorbis-$LIBVORBIS.tar.gz"
 cd "libvorbis-$LIBVORBIS"
 mkdir build-ds
 cd build-ds
-../configure --prefix="$DEPSINSTALLDIR" --enable-static --disable-shared --with-pic
+../configure "${DEP_CONFIGURE_COMMON[@]}" 
 make -j "$NPROCS"
 make install
 cd ../..
@@ -244,7 +271,7 @@ tar xf "libtheora-$LIBTHEORA.tar.bz2"
 cd "libtheora-$LIBTHEORA"
 mkdir build-ds
 cd build-ds
-../configure --prefix="$DEPSINSTALLDIR" --enable-static --disable-shared --with-pic --disable-examples --disable-sdltest --disable-vorbistest --disable-oggtest
+../configure "${DEP_CONFIGURE_COMMON[@]}" --disable-examples --disable-sdltest --disable-vorbistest --disable-oggtest
 make -j "$NPROCS"
 make install
 cd ../..
@@ -255,7 +282,7 @@ tar xf "speex-$SPEEX.tar.gz"
 cd "speex-$SPEEX"
 mkdir build-ds
 cd build-ds
-../configure --prefix="$DEPSINSTALLDIR" --enable-static --disable-shared --with-pic
+../configure "${DEP_CONFIGURE_COMMON[@]}" 
 make -j "$NPROCS"
 make install
 cd ../..
@@ -266,7 +293,7 @@ tar xf "flac-$FLAC.tar.xz"
 cd "flac-$FLAC"
 mkdir build-ds
 cd build-ds
-../configure --prefix="$DEPSINSTALLDIR" --enable-static --disable-shared --with-pic --disable-examples --disable-programs
+../configure "${DEP_CONFIGURE_COMMON[@]}" --disable-examples --disable-programs
 make -j "$NPROCS"
 make install
 cd ../..
@@ -285,7 +312,7 @@ tar xf "opus-$OPUS.tar.gz"
 cd "opus-$OPUS"
 mkdir build
 cd build
-../configure --prefix="$DEPSINSTALLDIR" --enable-static --disable-shared --with-pic --disable-doc
+../configure "${DEP_CONFIGURE_COMMON[@]}" --disable-doc
 make -j "$NPROCS"
 make install
 cd ../..
@@ -294,7 +321,7 @@ echo "Building SVT-AV1..."
 rm -fr SVT-AV1-v$SVT_AV1-*
 tar xf "SVT-AV1-$SVT_AV1.tar.gz"
 cd SVT-AV1-v$SVT_AV1-*
-cmake -B build-ds -G Ninja -DCMAKE_INSTALL_PREFIX="$DEPSINSTALLDIR" -DCMAKE_PREFIX_PATH="$DEPSINSTALLDIR" -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF
+cmake "${DEP_CMAKE_COMMON[@]}" -DBUILD_TESTING=OFF
 cmake --build build-ds --parallel
 cmake --install build-ds
 cd ..
@@ -303,7 +330,7 @@ echo "Building Vulkan-Headers..."
 rm -fr "Vulkan-Headers-$VULKAN_HEADERS"
 tar xf "Vulkan-Headers-$VULKAN_HEADERS.tar.gz"
 cd "Vulkan-Headers-$VULKAN_HEADERS"
-cmake -B build-ds -G Ninja -DCMAKE_INSTALL_PREFIX="$DEPSINSTALLDIR" -DCMAKE_PREFIX_PATH="$DEPSINSTALLDIR" -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DBUILD_SHARED_LIBS=OFF
+cmake "${DEP_CMAKE_COMMON[@]}"
 cmake --build build-ds --parallel
 cmake --install build-ds
 cd ..
@@ -313,10 +340,16 @@ rm -fr "glslang-$GLSLANG"
 tar xf "glslang-$GLSLANG.tar.gz"
 cd "glslang-$GLSLANG"
 ./update_glslang_sources.py
-cmake -B build-ds -G Ninja -DCMAKE_INSTALL_PREFIX="$DEPSINSTALLDIR" -DCMAKE_PREFIX_PATH="$DEPSINSTALLDIR" -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DBUILD_SHARED_LIBS=OFF -DGLSLANG_TESTS=OFF
+cmake "${DEP_CMAKE_COMMON[@]}" -DGLSLANG_TESTS=OFF
 cmake --build build-ds --parallel
 cmake --install build-ds
 cd ..
+
+# FFmpeg isn't a fan of these env vars
+unset CC
+unset CXX
+unset LDFLAGS
+unset CXXFLAGS
 
 echo "Building ffmpeg..."
 rm -fr "ffmpeg-$FFMPEG_VERSION"
@@ -326,8 +359,10 @@ mkdir build
 cd build
 ../configure --prefix="$INSTALLDIR" --disable-static --enable-shared \
   --pkg-config-flags="--static" \
-  --extra-cflags="-I$DEPSINSTALLDIR/include" \
-  --extra-ldflags="-L$DEPSINSTALLDIR/lib" --extra-ldflags="-L$DEPSINSTALLDIR/lib64" \
+  --cc=clang-${LLVM_VER} \
+  --cxx=clang++-${LLVM_VER} \
+  --extra-cflags="-I$DEPSINSTALLDIR/include -stdlib=libc++" \
+  --extra-ldflags="-L$DEPSINSTALLDIR/lib" --extra-ldflags="-L$DEPSINSTALLDIR/lib64 -fuse-ld=lld -stdlib=libc++" \
   --extra-ldsoflags="-Wl,-rpath,XORIGIN" \
   --disable-all --disable-autodetect --enable-libmp3lame --enable-libvpx --enable-zlib --enable-libwebp \
   --enable-libfdk-aac --enable-libaom --enable-libvorbis --enable-libtheora --enable-libspeex \
