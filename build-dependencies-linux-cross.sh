@@ -55,6 +55,7 @@ elif [ "$CROSSARCH" == "armhf" ]; then
   CROSSSYSARCH="armhf"
   CROSSTRIPLET="arm-linux-gnueabihf"
   CMAKEPROCESSOR="armv7-a"
+  ARM_NEON_FLAGS="--target=arm-linux-gnueabihf -mfloat-abi=hard -mfpu=vfpv3-d16"
 else
   echo "Unknown cross arch $CROSSARCH"
   exit 1
@@ -137,21 +138,27 @@ fi
 export PKG_CONFIG_PATH=${SYSROOTDIR}/usr/lib/${CROSSTRIPLET}/pkgconfig:${SYSROOTDIR}/usr/lib/pkgconfig:${SYSROOTDIR}/usr/share/pkgconfig
 export PKG_CONFIG_SYSROOT_DIR=${SYSROOTDIR}
 
+# Set LLVM version
+LLVM_VER=$(cat "$SCRIPTDIR/LLVM_VER")
+
 # Generate cmake toolchain file.
 cat > "$TOOLCHAINFILE" << EOF
-set(CMAKE_CROSSCOMPILING TRUE)
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR ${CMAKEPROCESSOR})
 
-set(CMAKE_C_COMPILER "/usr/bin/${CROSSTRIPLET}-gcc")
+set(CMAKE_C_COMPILER "clang-${LLVM_VER}")
 set(CMAKE_C_COMPILER_TARGET "${CROSSTRIPLET}")
-set(CMAKE_C_COMPILER_AR "/usr/bin/${CROSSTRIPLET}-ar")
-set(CMAKE_C_COMPILER_RANLIB "/usr/bin/${CROSSTRIPLET}-ranlib")
+set(CMAKE_C_COMPILER_AR "llvm-ar-${LLVM_VER}")
+set(CMAKE_C_COMPILER_RANLIB "llvm-ranlib-${LLVM_VER}")
+set(CMAKE_C_FLAGS_INIT "-I${SYSROOTDIR}/usr/include/${CROSSTRIPLET} ${ARM_NEON_FLAGS}")
 
-set(CMAKE_CXX_COMPILER "/usr/bin/${CROSSTRIPLET}-g++")
+set(CMAKE_CXX_COMPILER "clang++-${LLVM_VER}")
 set(CMAKE_CXX_COMPILER_TARGET "${CROSSTRIPLET}")
-set(CMAKE_CXX_COMPILER_AR "/usr/bin/${CROSSTRIPLET}-ar")
-set(CMAKE_CXX_COMPILER_RANLIB "/usr/bin/${CROSSTRIPLET}-ranlib")
+set(CMAKE_CXX_COMPILER_AR "llvm-ar-${LLVM_VER}")
+set(CMAKE_CXX_COMPILER_RANLIB "llvm-ranlib-${LLVM_VER}")
+set(CMAKE_CXX_FLAGS_INIT "-I${SYSROOTDIR}/usr/include/${CROSSTRIPLET} ${ARM_NEON_FLAGS} -stdlib=libc++")
+
+set(CMAKE_LINKER_TYPE LLD)
 
 set(CMAKE_FIND_ROOT_PATH "${INSTALLDIR};${SYSROOTDIR}")
 set(CMAKE_SYSROOT "${SYSROOTDIR}")
@@ -312,6 +319,7 @@ rm -fr "qtbase-everywhere-src-$QT"
 tar xf "qtbase-everywhere-src-$QT.tar.xz"
 cd "qtbase-everywhere-src-$QT"
 patch -p1 < "$SCRIPTDIR/patches/qtbase-fusion-style.patch"
+patch -p1 < "$SCRIPTDIR/patches/qtbase-armhf-disable-pixman.patch"
 mkdir build
 cd build
 ../configure -prefix "$INSTALLDIR" -extprefix "$INSTALLDIR" -qt-host-path "$HOSTDIR" -release -dbus runtime -fontconfig -qt-doubleconversion -ssl -openssl-runtime -opengl desktop -qpa xcb,wayland -xkbcommon -xcb -- -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAINFILE" -DCMAKE_PREFIX_PATH="$INSTALLDIR" -DQT_GENERATE_SBOM=OFF -DFEATURE_cups=OFF -DFEATURE_dbus=ON -DFEATURE_dbus_linked=OFF -DFEATURE_icu=OFF -DFEATURE_sql=OFF -DFEATURE_system_png=ON -DFEATURE_system_jpeg=ON -DFEATURE_system_zlib=ON -DFEATURE_system_freetype=ON -DFEATURE_system_harfbuzz=ON -DFEATURE_gtk3=OFF -DFEATURE_brotli=OFF
@@ -423,7 +431,7 @@ echo "Building soundtouch..."
 rm -fr "soundtouch-$SOUNDTOUCH_COMMIT"
 tar xf "soundtouch-$SOUNDTOUCH_COMMIT.tar.gz"
 cd "soundtouch-$SOUNDTOUCH_COMMIT"
-cmake "${CMAKE_COMMON[@]}" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -B build -G Ninja
+cmake "${CMAKE_COMMON[@]}" -B build -G Ninja
 cmake --build build --parallel
 ninja -C build install
 cd ..
