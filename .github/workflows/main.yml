@@ -156,7 +156,7 @@ jobs:
     needs: [build-sources, build-linux-x64]
     runs-on: ubuntu-22.04
     container:
-      image: ghcr.io/duckstation/cross-build-${{ matrix.arch }}:latest
+      image: ghcr.io/charlesthobe/cross-build-${{ matrix.arch }}:latest
     timeout-minutes: 240
     strategy:
       fail-fast: false
