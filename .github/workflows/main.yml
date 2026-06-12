@@ -39,81 +39,6 @@ jobs:
         compression-level: 0
         if-no-files-found: error
 
-  build-windows:
-    name: "💻 Windows"
-    needs: build-sources
-    runs-on: windows-2025-vs2026
-    timeout-minutes: 240
-    steps:
-    - uses: actions/checkout@v6
-
-    - name: Download Sources
-      uses: actions/download-artifact@v6
-      with:
-        name: deps-sources
-        path: ./deps-sources
-
-    - name: Extract Sources
-      shell: cmd
-      run: |
-        "C:\Program Files\7-Zip\7z.exe" x deps-sources/deps-sources.zip
-
-    - name: Build x64 Dependencies
-      run: .\build-dependencies-windows-x64.bat -skip-download -skip-cleanup
-
-    - name: Build ARM64 Dependencies
-      run: .\build-dependencies-windows-arm64.bat -skip-download -skip-cleanup
-
-    - name: Create Archives
-      shell: cmd
-      run: |
-        "C:\Program Files\7-Zip\7z.exe" a -r deps-windows-x64.7z windows-x64
-        "C:\Program Files\7-Zip\7z.exe" a -r deps-windows-arm64.7z windows-arm64
-
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v6
-      with:
-        name: deps-windows
-        path: |
-          deps-windows-x64.7z
-          deps-windows-arm64.7z
-        compression-level: 0
-        if-no-files-found: error
-
-  build-macos:
-    name: "🍎 MacOS"
-    needs: build-sources
-    runs-on: macos-26
-    timeout-minutes: 240
-    steps:
-    - uses: actions/checkout@v6
-
-    - name: Download Sources
-      uses: actions/download-artifact@v6
-      with:
-        name: deps-sources
-        path: ./deps-sources
-
-    - name: Extract Sources
-      run: unzip deps-sources/deps-sources.zip
-
-    - name: Use Xcode 26.5
-      run: sudo xcode-select -s /Applications/Xcode_26.5.app
-
-    - name: Build Dependencies
-      run: ./build-dependencies-mac.sh -skip-download macos-universal
-
-    - name: Create Archive
-      run: tar -cJf deps-macos-universal.tar.xz macos-universal
-
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v6
-      with:
-        name: deps-macos-universal
-        path: deps-macos-universal.tar.xz
-        compression-level: 0
-        if-no-files-found: error
-
   build-linux-x64:
     name: "🐧 Linux x64"
     needs: build-sources
@@ -156,7 +81,7 @@ jobs:
     needs: [build-sources, build-linux-x64]
     runs-on: ubuntu-22.04
     container:
-      image: ghcr.io/duckstation/cross-build-${{ matrix.arch }}:latest
+      image: ghcr.io/charlesthobe/cross-build-${{ matrix.arch }}:latest
     timeout-minutes: 240
     strategy:
       fail-fast: false
@@ -202,7 +127,7 @@ jobs:
   create-release:
     name: "📤 Create Release"
     if: github.ref == 'refs/heads/master'
-    needs: [build-windows, build-macos, build-linux-x64, build-linux-cross, build-sources]
+    needs: [build-linux-x64, build-linux-cross, build-sources]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
@@ -225,9 +150,6 @@ jobs:
         gh release create "$TAG" \
           --title "$TAG" \
           --notes "Dependencies built on $(date +'%Y-%m-%d') from commit ${{ github.sha }}." \
-          artifacts/deps-windows/deps-windows-x64.7z \
-          artifacts/deps-windows/deps-windows-arm64.7z \
-          artifacts/deps-macos-universal/deps-macos-universal.tar.xz \
           artifacts/deps-linux-x64/deps-linux-x64.tar.xz \
           artifacts/deps-linux-cross-arm64/deps-linux-cross-arm64.tar.xz \
           artifacts/deps-linux-cross-armhf/deps-linux-cross-armhf.tar.xz \
